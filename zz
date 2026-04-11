@@ -1,0 +1,332 @@
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local player = Players.LocalPlayer
+
+
+local CONFIG = {
+    RISE_SPEED = 0.1485,
+    DEBOUNCE = 0.5,
+    THEME = {
+        BG = Color3.fromRGB(20, 10, 30),
+        PURPLE = Color3.fromRGB(147, 51, 234),
+        PURPLE_GLOW = Color3.fromRGB(192, 132, 252),
+        DARK = Color3.fromRGB(30, 20, 45),
+        OFF = Color3.fromRGB(60, 60, 70),
+        ON = Color3.fromRGB(147, 51, 234),
+        TEXT = Color3.fromRGB(255, 255, 255)
+    }
+}
+
+
+local isActive = false
+local elevator = nil
+local connection = nil
+local lastToggle = 0
+local dragInput = nil
+local dragStart = nil
+local startPos = nil
+local isDragging = false
+
+
+local function SetupAntiKill(char)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    humanoid.HealthChanged:Connect(function(health)
+        if health <= 0 then humanoid.Health = humanoid.MaxHealth end
+    end)
+    for _, state in pairs({Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.Physics}) do
+        humanoid:SetStateEnabled(state, false)
+    end
+end
+
+
+local function SpoofPhysics(hrp)
+    hrp.Velocity = Vector3.new(hrp.Velocity.X, 0.1, hrp.Velocity.Z)
+    hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0.1, hrp.AssemblyLinearVelocity.Z)
+end
+
+
+local function StartElevator()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    SetupAntiKill(char)
+    
+    elevator = Instance.new("Part")
+    elevator.Name = "Z_" .. tostring(math.random(100000,999999))
+    elevator.Size = Vector3.new(3, 0.2, 3)
+    elevator.Color = CONFIG.THEME.PURPLE
+    elevator.Material = Enum.Material.Neon
+    elevator.Transparency = 0.8
+    elevator.Anchored = true
+    elevator.CanCollide = true
+    elevator.CanQuery = false
+    elevator.CanTouch = false
+    elevator.Parent = workspace
+    
+    local startY = hrp.Position.Y - 2
+    elevator.CFrame = CFrame.new(hrp.Position.X, startY, hrp.Position.Z)
+    
+    connection = RunService.Heartbeat:Connect(function()
+        if not isActive or not elevator or not elevator.Parent then return end
+        local currentHRP = char:FindFirstChild("HumanoidRootPart")
+        if not currentHRP then return end
+        
+        local currentPos = currentHRP.Position
+        local currentRot = currentHRP.CFrame - currentHRP.CFrame.Position
+        local newY = elevator.Position.Y + CONFIG.RISE_SPEED
+        
+        elevator.CFrame = CFrame.new(currentPos.X, newY, currentPos.Z)
+        
+        local targetY = newY + 3
+        if targetY - currentPos.Y > 0.3 then
+            currentHRP.CFrame = CFrame.new(currentPos.X, targetY, currentPos.Z) * currentRot
+        end
+        
+        SpoofPhysics(currentHRP)
+    end)
+end
+
+local function StopElevator()
+    if connection then connection:Disconnect() connection = nil end
+    if elevator then elevator:Destroy() elevator = nil end
+end
+
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ZAIROS_V10"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+
+local Container = Instance.new("Frame")
+Container.Name = "Card"
+Container.Size = UDim2.new(0, 85, 0, 110)
+Container.Position = UDim2.new(0.88, -20, 0.08,-77)
+Container.BackgroundColor3 = CONFIG.THEME.BG
+Container.BackgroundTransparency = 0.2
+Container.BorderSizePixel = 0
+Container.Parent = ScreenGui
+Container.Active = true
+
+
+local BgGradient = Instance.new("UIGradient")
+BgGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, CONFIG.THEME.DARK),
+    ColorSequenceKeypoint.new(0.5, CONFIG.THEME.BG),
+    ColorSequenceKeypoint.new(1, CONFIG.THEME.DARK)
+})
+BgGradient.Rotation = 90
+BgGradient.Parent = Container
+
+spawn(function()
+    while Container.Parent do
+        for i = 0, 360, 3 do
+            BgGradient.Rotation = i
+            task.wait(0.03)
+        end
+    end
+end)
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 16)
+Corner.Parent = Container
+
+
+local Border = Instance.new("UIStroke")
+Border.Color = CONFIG.THEME.PURPLE
+Border.Thickness = 2
+Border.Transparency = 0.4
+Border.Parent = Container
+
+spawn(function()
+    while Container.Parent do
+        TweenService:Create(Border, TweenInfo.new(1.5), {Transparency = 0.1, Color = CONFIG.THEME.PURPLE_GLOW}):Play()
+        task.wait(1.5)
+        TweenService:Create(Border, TweenInfo.new(1.5), {Transparency = 0.5, Color = CONFIG.THEME.PURPLE}):Play()
+        task.wait(1.5)
+    end
+end)
+
+
+local Glow = Instance.new("ImageLabel")
+Glow.Size = UDim2.new(1.3, 0, 1.3, 0)
+Glow.Position = UDim2.new(-0.15, 0, -0.15, 0)
+Glow.BackgroundTransparency = 1
+Glow.Image = "rbxassetid://1316045217"
+Glow.ImageColor3 = CONFIG.THEME.PURPLE
+Glow.ImageTransparency = 0.6
+Glow.Parent = Container
+
+spawn(function()
+    while Container.Parent do
+        TweenService:Create(Glow, TweenInfo.new(2), {ImageTransparency = 0.3}):Play()
+        task.wait(2)
+        TweenService:Create(Glow, TweenInfo.new(2), {ImageTransparency = 0.7}):Play()
+        task.wait(2)
+    end
+end)
+
+
+Container.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+        dragStart = input.Position
+        startPos = Container.Position
+        dragInput = input
+    end
+end)
+
+Container.InputChanged:Connect(function(input)
+    if input == dragInput and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > 5 then isDragging = true end
+        Container.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+Container.InputEnded:Connect(function(input)
+    if input == dragInput then
+        dragInput = nil
+        task.delay(0.15, function() isDragging = false end)
+    end
+end)
+
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 22)
+Title.Position = UDim2.new(0, 0, 0, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "مصعد-Elevator"
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 10
+Title.TextColor3 = CONFIG.THEME.TEXT
+Title.Parent = Container
+
+local TitleStroke = Instance.new("UIStroke")
+TitleStroke.Color = CONFIG.THEME.PURPLE
+TitleStroke.Thickness = 1.5
+TitleStroke.Parent = Title
+
+spawn(function()
+    while Title.Parent do
+        TweenService:Create(TitleStroke, TweenInfo.new(1), {Color = CONFIG.THEME.PURPLE_GLOW}):Play()
+        task.wait(1)
+        TweenService:Create(TitleStroke, TweenInfo.new(1), {Color = CONFIG.THEME.PURPLE}):Play()
+        task.wait(1)
+    end
+end)
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "Toggle"
+ToggleBtn.Size = UDim2.new(0, 65, 0, 50)
+ToggleBtn.Position = UDim2.new(0.5, -32.5, 0.55, 0)
+ToggleBtn.BackgroundColor3 = CONFIG.THEME.OFF
+ToggleBtn.Text = "OFF"
+ToggleBtn.Font = Enum.Font.GothamBlack
+ToggleBtn.TextSize = 14
+ToggleBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+ToggleBtn.Parent = Container
+ToggleBtn.AutoButtonColor = false
+ToggleBtn.ZIndex = 5
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 12)
+ToggleCorner.Parent = ToggleBtn
+
+
+local BtnGradient = Instance.new("UIGradient")
+BtnGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 60)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 70, 80))
+})
+BtnGradient.Parent = ToggleBtn
+
+
+local BtnGlow = Instance.new("ImageLabel")
+BtnGlow.Size = UDim2.new(1.2, 0, 1.2, 0)
+BtnGlow.Position = UDim2.new(-0.1, 0, -0.1, 0)
+BtnGlow.BackgroundTransparency = 1
+BtnGlow.Image = "rbxassetid://1316045217"
+BtnGlow.ImageColor3 = CONFIG.THEME.PURPLE
+BtnGlow.ImageTransparency = 1
+BtnGlow.Parent = ToggleBtn
+
+
+local function UpdateButtonState()
+    if isActive then
+       
+        ToggleBtn.Text = "ON"
+        ToggleBtn.BackgroundColor3 = CONFIG.THEME.ON
+        ToggleBtn.TextColor3 = CONFIG.THEME.TEXT
+        BtnGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, CONFIG.THEME.PURPLE),
+            ColorSequenceKeypoint.new(1, CONFIG.THEME.PURPLE_GLOW)
+        })
+        TweenService:Create(BtnGlow, TweenInfo.new(0.3), {ImageTransparency = 0.3}):Play()
+        
+        
+        spawn(function()
+            while isActive and ToggleBtn.Parent do
+                TweenService:Create(BtnGlow, TweenInfo.new(0.6), {ImageTransparency = 0.1}):Play()
+                task.wait(0.6)
+                if not isActive then break end
+                TweenService:Create(BtnGlow, TweenInfo.new(0.6), {ImageTransparency = 0.4}):Play()
+                task.wait(0.6)
+            end
+        end)
+    else
+       
+        ToggleBtn.Text = "OFF"
+        ToggleBtn.BackgroundColor3 = CONFIG.THEME.OFF
+        ToggleBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        BtnGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 60)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 70, 80))
+        })
+        TweenService:Create(BtnGlow, TweenInfo.new(0.3), {ImageTransparency = 1}):Play()
+    end
+end
+
+local function OnToggleClicked()
+    
+    if isDragging then return end
+    
+    
+    local now = tick()
+    if now - lastToggle < CONFIG.DEBOUNCE then return end
+    lastToggle = now
+    
+    
+    isActive = not isActive
+    
+    
+    if isActive then
+        StartElevator()
+    else
+        StopElevator()
+    end
+    
+    
+    UpdateButtonState()
+end
+
+ToggleBtn.MouseButton1Click:Connect(OnToggleClicked)
+ToggleBtn.TouchTap:Connect(OnToggleClicked)
+
+
+player.CharacterRemoving:Connect(function()
+    if isActive then
+        isActive = false
+        StopElevator()
+        UpdateButtonState()
+    end
+end)
+
+
